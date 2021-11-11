@@ -1,3 +1,10 @@
+// NOTE: we might want to use unsafe code
+#![forbid(
+    clippy::cast_ptr_alignment,
+    trivial_casts,
+    unconditional_recursion
+)]
+
 pub mod primes;
 use crate::primes::PRIMES;
 
@@ -50,7 +57,7 @@ impl<E: WholeNum> Urat<E> {
 
     fn rfr<F: FnMut((&mut E, &E))>(&mut self, rhs: &[E], f: F) {
         self.reserve(rhs.len());
-        self.inner.iter_mut().zip(rhs.into_iter()).for_each(f);
+        self.inner.iter_mut().zip(rhs.iter()).for_each(f);
         self.reduce();
     }
 }
