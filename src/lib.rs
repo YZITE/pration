@@ -37,9 +37,15 @@ impl<E: WholeNum> Urat<E> {
 
     fn reduce(&mut self) {
         let zero = E::zero();
-        while self.inner.last() == Some(&zero) {
-            self.inner.pop();
-        }
+        self.inner.truncate(
+            self.inner.len()
+                - self
+                    .inner
+                    .iter()
+                    .rev()
+                    .take_while(move |&i| i == &zero)
+                    .count(),
+        );
     }
 
     fn rfr<F: FnMut((&mut E, &E))>(&mut self, rhs: &[E], f: F) {
@@ -94,24 +100,50 @@ impl<E: WholeNum> From<std::num::NonZeroU64> for Urat<E> {
     fn from(inp: std::num::NonZeroU64) -> Self {
         let mut inp = inp.get();
         let mut ret = Self::new();
+        if inp == 1 {
+            // we don't need to acquire the global lock if we don't need any
+            // prime numbers anyways
+            return ret;
+        }
+        let mut loop_body = |pidx: usize, pval: u64| {
+            if inp % pval != 0 {
+                return false;
+            }
+            assert_ne!(inp, 0);
+            ret.reserve(pidx + 1);
+            let rpirf = &mut ret.inner[pidx];
+            while inp % pval == 0 {
+                // overflow potential:
+                // not even i8 is small enough to not fit (u64 max / 2 + 1) into it.
+                *rpirf = *rpirf + E::one();
+                // for-ever loop potential:
+                // this should never lead to `inp == 0`
+                inp /= pval;
+                debug_assert_ne!(inp, 0);
+            }
+            inp == 1
+        };
+        let skv = {
+            let pro = PRIMES.read().expect("accessing PRIMES failed");
+            let pcpv = pro.get();
+            let skv = pcpv.len();
+            for (pidx, pval) in pcpv.iter().enumerate() {
+                if loop_body(pidx, *pval) {
+                    // arrived at `inp == 1`
+                    return ret;
+                }
+            }
+            skv
+        };
         for (pidx, pval) in PRIMES
             .write()
             .expect("accessing PRIMES failed")
             .iter()
             .enumerate()
+            .skip(skv)
         {
-            if inp == 1 {
+            if loop_body(pidx, pval) {
                 break;
-            } else if inp % pval == 0 {
-                assert_ne!(inp, 0);
-                ret.reserve(pidx + 1);
-                let rpirf = &mut ret.inner[pidx];
-                while inp % pval == 0 {
-                    // overflow potential:
-                    // not even i8 is small enough to not fit (u64 max / 2 + 1) into it.
-                    *rpirf = *rpirf + E::one();
-                    inp /= pval;
-                }
             }
         }
         ret
