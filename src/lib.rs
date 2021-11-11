@@ -114,8 +114,6 @@ impl<E: WholeNum> From<std::num::NonZeroU64> for Urat<E> {
                 }
             }
         }
-        // shouldn't be necessary, but I'm not sure if the code above has no leaks
-        ret.reduce();
         ret
     }
 }
@@ -123,6 +121,7 @@ impl<E: WholeNum> From<std::num::NonZeroU64> for Urat<E> {
 #[cfg(test)]
 mod tests {
     use crate::Urat;
+    use proptest::prelude::*;
 
     #[test]
     fn tconv_basic() {
@@ -142,6 +141,16 @@ mod tests {
                     inner: tst.to_vec(),
                 }
             );
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn fnzu64_always_reduced(i in 1u64..10_000_000) {
+            let mut r: Urat<i8> = std::num::NonZeroU64::new(i).unwrap().into();
+            let r2 = r.clone();
+            r.reduce();
+            assert_eq!(r, r2);
         }
     }
 }
