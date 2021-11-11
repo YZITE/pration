@@ -19,9 +19,7 @@ pub struct Urat<E: WholeNum> {
 impl<E: WholeNum> Default for Urat<E> {
     #[inline]
     fn default() -> Self {
-        Self {
-            inner: vec![],
-        }
+        Self { inner: vec![] }
     }
 }
 
@@ -44,7 +42,7 @@ impl<E: WholeNum> Urat<E> {
         }
     }
 
-    fn rfr<F: FnMut((&mut E, &E),)>(&mut self, rhs: &[E], f: F) {
+    fn rfr<F: FnMut((&mut E, &E))>(&mut self, rhs: &[E], f: F) {
         self.reserve(rhs.len());
         self.inner.iter_mut().zip(rhs.into_iter()).for_each(f);
         self.reduce();
@@ -92,57 +90,58 @@ impl<'a, E: WholeNum> num_traits::Pow<&'a E> for Urat<E> {
     }
 }
 
-#[derive(Clone, Debug, thiserror::Error)]
-#[error("some output value exponent overflowed")]
-pub struct OverflowError;
-
-impl<E: WholeNum> TryFrom<std::num::NonZeroU64> for Urat<E> {
-    type Error = OverflowError;
-    fn try_from(inp: std::num::NonZeroU64) -> Result<Self, OverflowError> {
+impl<E: WholeNum> From<std::num::NonZeroU64> for Urat<E> {
+    fn from(inp: std::num::NonZeroU64) -> Self {
         let mut inp = inp.get();
         let mut ret = Self::new();
-        let one = E::one();
-        for (pidx, pval) in PRIMES.write().expect("accessing PRIMES failed").iter().enumerate() {
+        for (pidx, pval) in PRIMES
+            .write()
+            .expect("accessing PRIMES failed")
+            .iter()
+            .enumerate()
+        {
             if inp == 1 {
                 break;
             } else if inp % pval == 0 {
+                assert_ne!(inp, 0);
                 ret.reserve(pidx + 1);
                 let rpirf = &mut ret.inner[pidx];
                 while inp % pval == 0 {
-                    assert!(inp > 0);
-                    if let Some(x) = rpirf.checked_add(&one) {
-                        *rpirf = x;
-                    } else {
-                        return Err(OverflowError);
-                    }
+                    // overflow potential:
+                    // not even i8 is small enough to not fit (u64 max / 2 + 1) into it.
+                    *rpirf = *rpirf + E::one();
                     inp /= pval;
                 }
             }
         }
         // shouldn't be necessary, but I'm not sure if the code above has no leaks
         ret.reduce();
-        Ok(ret)
+        ret
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::Urat;
+
     #[test]
     fn tconv_basic() {
-        use std::num::NonZeroU64;
-        let o = NonZeroU64::new(1).unwrap();
-        let w = NonZeroU64::new(2).unwrap();
-        let e = NonZeroU64::new(3).unwrap();
-        let ro: Urat<i8> = o.try_into().unwrap();
-        let rw: Urat<i8> = w.try_into().unwrap();
-        let re: Urat<i8> = e.try_into().unwrap();
-        assert_eq!(ro, Urat::default());
-        assert_eq!(rw, Urat {
-            inner: vec![1],
-        });
-        assert_eq!(re, Urat {
-            inner: vec![0, 1],
-        });
+        let inps: [(u64, &[i8]); 6] = [
+            (1, &[]),
+            (2, &[1]),
+            (3, &[0, 1]),
+            (4, &[2]),
+            (6, &[1, 1]),
+            (u64::MAX / 2 + 1, &[63]),
+        ];
+        for (inp, tst) in inps {
+            let r: Urat<i8> = std::num::NonZeroU64::new(inp).unwrap().into();
+            assert_eq!(
+                r,
+                Urat {
+                    inner: tst.to_vec(),
+                }
+            );
+        }
     }
 }
