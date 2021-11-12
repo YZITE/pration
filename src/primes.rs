@@ -1,12 +1,12 @@
 use once_cell::sync::Lazy;
 use std::sync::RwLock;
 
-pub static PRIMES: Lazy<RwLock<Store>> = Lazy::new(|| RwLock::new(Store::new()));
+static PRIMES: Lazy<RwLock<Store>> = Lazy::new(|| RwLock::new(Store::new()));
 
 type Prime = u64;
 
 #[derive(Clone)]
-pub struct Store {
+struct Store {
     inner: Vec<Prime>,
 }
 
@@ -37,10 +37,6 @@ impl Store {
         }
     }
 
-    pub fn get(&self) -> &[Prime] {
-        &self.inner[..]
-    }
-
     // may panic, although runtime -> inf. beforehand
     pub fn find_next(&mut self) {
         let mut t = *self.inner.last().unwrap();
@@ -63,13 +59,6 @@ impl Store {
         }
         let _ = inwo2;
         self.inner.push(t);
-    }
-
-    pub fn get_at(&mut self, n: usize) -> Prime {
-        while self.inner.len() < n {
-            self.find_next();
-        }
-        self.inner[n]
     }
 }
 
