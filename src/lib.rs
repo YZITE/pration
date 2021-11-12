@@ -5,7 +5,12 @@
     unconditional_recursion
 )]
 
-pub mod primes;
+use std::cell::RefCell;
+use primes::PrimeSet;
+
+thread_local! {
+    pub static PRIMES: RefCell<primes::Sieve> = RefCell::new(primes::Sieve::new());
+}
 
 trait_set::trait_set! {
     pub trait WholeNum = num_traits::int::PrimInt + num_traits::sign::Signed;
@@ -111,7 +116,7 @@ impl<E: WholeNum> From<std::num::NonZeroU64> for Urat<E> {
             // prime numbers anyways
             return ret;
         }
-        for (pidx, pval) in crate::primes::iter().enumerate() {
+        PRIMES.with(|primes| for (pidx, pval) in primes.borrow_mut().iter().enumerate() {
             if inp % pval != 0 {
                 continue;
             }
@@ -130,7 +135,7 @@ impl<E: WholeNum> From<std::num::NonZeroU64> for Urat<E> {
             if inp == 1 {
                 break;
             }
-        }
+        });
         ret
     }
 }
