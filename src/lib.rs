@@ -6,7 +6,6 @@
 )]
 
 pub mod primes;
-use crate::primes::PRIMES;
 
 trait_set::trait_set! {
     pub trait WholeNum = num_traits::int::PrimInt + num_traits::sign::Signed;
@@ -112,9 +111,9 @@ impl<E: WholeNum> From<std::num::NonZeroU64> for Urat<E> {
             // prime numbers anyways
             return ret;
         }
-        let mut loop_body = |pidx: usize, pval: u64| {
+        for (pidx, pval) in crate::primes::iter().enumerate() {
             if inp % pval != 0 {
-                return false;
+                continue;
             }
             assert_ne!(inp, 0);
             ret.reserve(pidx + 1);
@@ -128,28 +127,7 @@ impl<E: WholeNum> From<std::num::NonZeroU64> for Urat<E> {
                 inp /= pval;
                 debug_assert_ne!(inp, 0);
             }
-            inp == 1
-        };
-        let skv = {
-            let pro = PRIMES.read().expect("accessing PRIMES failed");
-            let pcpv = pro.get();
-            let skv = pcpv.len();
-            for (pidx, pval) in pcpv.iter().enumerate() {
-                if loop_body(pidx, *pval) {
-                    // arrived at `inp == 1`
-                    return ret;
-                }
-            }
-            skv
-        };
-        for (pidx, pval) in PRIMES
-            .write()
-            .expect("accessing PRIMES failed")
-            .iter()
-            .enumerate()
-            .skip(skv)
-        {
-            if loop_body(pidx, pval) {
+            if inp == 1 {
                 break;
             }
         }

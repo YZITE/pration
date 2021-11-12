@@ -10,9 +10,14 @@ pub struct Store {
     inner: Vec<Prime>,
 }
 
-pub struct Iter<'a> {
-    inner: &'a mut Store,
-    pos: Option<usize>,
+enum OuterIterMode {
+    R(std::sync::RwLockReadGuard<'static, Store>),
+    W(std::sync::RwLockWriteGuard<'static, Store>),
+}
+
+pub struct OuterIter {
+    mode: Option<OuterIterMode>,
+    pos: usize,
 }
 
 impl Store {
@@ -66,29 +71,41 @@ impl Store {
         }
         self.inner[n]
     }
+}
 
-    pub fn iter(&mut self) -> Iter<'_> {
-        Iter {
-            inner: self,
-            pos: Some(0),
-        }
+impl Iterator for OuterIter {
+    type Item = Prime;
+    fn next(&mut self) -> Option<Prime> {
+        use OuterIterMode as M;
+        let mut w = match self.mode.take().unwrap() {
+            M::R(r) => {
+                if let Some(&y) = r.inner.get(self.pos) {
+                    self.pos += 1;
+                    self.mode = Some(M::R(r));
+                    return Some(y);
+                }
+                std::mem::drop(r);
+                PRIMES.write().expect("unable to access PRIMES (write)")
+            }
+            M::W(w) => w,
+        };
+        let ret = *if let Some(y) = w.inner.get(self.pos) {
+            y
+        } else {
+            w.find_next();
+            assert_eq!(self.pos, w.inner.len() - 1);
+            w.inner.last().unwrap()
+        };
+        self.pos += 1;
+        self.mode = Some(M::W(w));
+        Some(ret)
     }
 }
 
-impl Iterator for Iter<'_> {
-    type Item = Prime;
-    fn next(&mut self) -> Option<Prime> {
-        if let Some(x) = self.pos {
-            if let Some(&y) = self.inner.inner.get(x) {
-                self.pos = Some(x + 1);
-                return Some(y);
-            } else {
-                self.pos = None;
-            }
-        }
-        assert_eq!(self.pos, None);
-        self.inner.find_next();
-        self.inner.inner.last().copied()
+pub fn iter() -> OuterIter {
+    OuterIter {
+        mode: Some(OuterIterMode::R(PRIMES.read().expect("unable to access PRIMES (read)"))),
+        pos: 0,
     }
 }
 
@@ -98,7 +115,7 @@ mod tests {
     fn primes1000() {
         // we don't want this test to hide regressions in error handling in
         // other parts of the code
-        let mut ps = crate::PRIMES.read().unwrap().clone();
+        let mut ps = super::PRIMES.read().unwrap().clone();
         (0..10_000).for_each(|_| ps.find_next());
         for (n, i) in ps.inner.iter().enumerate().skip(1) {
             for j in &ps.inner[..n] {
