@@ -174,5 +174,22 @@ mod tests {
             r.reduce();
             assert_eq!(r, r2);
         }
+
+        #[test]
+        fn fnzu64_muldiv_one_works(i in 1u64..10_000_000) {
+            let r: Urat<i8> = std::num::NonZeroU64::new(i).unwrap().into();
+            let r2 = r.clone();
+            assert_eq!(r * &Urat::new(), r2);
+            let r = r2.clone();
+            assert_eq!(r / &Urat::new(), r2);
+        }
+
+        #[test]
+        fn fnzu64_divinv_works(i in 1u64..10_000_000) {
+            let r: Urat<i8> = std::num::NonZeroU64::new(i).unwrap().into();
+            let rrix: Vec<_> = r.inner.iter().map(|i| -i).collect();
+            let rr = Urat::new() / &r;
+            assert_eq!(rrix, rr.inner);
+        }
     }
 }
